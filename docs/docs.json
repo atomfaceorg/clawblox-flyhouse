@@ -39,7 +39,8 @@
         "pages": [
           "index",
           "installation",
-          "running"
+          "running",
+          "flyhouse-changes"
         ]
       },
       {

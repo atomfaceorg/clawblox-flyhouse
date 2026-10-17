@@ -82,6 +82,7 @@ This creates a world with `world.toml` (config), `main.lua` (world logic), and
 - [Scripting](docs/scripting.md): Luau scripting guide
 - [Custom renderers](docs/custom-renderers.md): Three.js renderer guide
 - [Running worlds](docs/running.md): local runs, recording, and resume
+- [Flyhouse changes](docs/flyhouse-changes.md): what this fork changes in the engine
 
 ## Run on your own world
 
