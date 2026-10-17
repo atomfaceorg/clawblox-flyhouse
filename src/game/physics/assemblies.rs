@@ -4,7 +4,8 @@ use std::time::Instant;
 use rapier3d::prelude::*;
 
 use super::{
-    build_collider_with_physical_properties, finite_vec3, part_isometry, rotation_matrix_is_finite,
+    build_collider_with_physical_properties, build_mesh_collider_with_physical_properties,
+    finite_vec3, part_isometry, rotation_matrix_is_finite,
     transform_within_physics_envelope, velocity_within_physics_envelope, PartInteractionState,
     PhysicsAssemblyPart, PhysicsAssemblySpec, PhysicsWorld,
 };
@@ -87,7 +88,10 @@ fn assembly_signature(
 ) -> String {
     let mut out = format!("anchored={};", anchored);
     for (part, local) in parts.iter().zip(local_frames) {
-        out.push_str(&format!("id={};shape={:?};", part.lua_id, part.shape));
+        out.push_str(&format!(
+            "id={};shape={:?};mesh={:?};",
+            part.lua_id, part.shape, part.mesh_id
+        ));
         out.push_str("size=");
         fmt_vec3(&mut out, part.size);
         out.push_str(";local=");
@@ -567,12 +571,23 @@ impl PhysicsWorld {
                 can_query: part.can_query,
                 collision_group: part.collision_group,
             };
-            let mut collider = build_collider_with_physical_properties(
-                part.size,
-                part.shape,
-                interaction_state,
-                part.physical_properties,
-            );
+            let mut collider = match part
+                .mesh_id
+                .as_deref()
+                .and_then(crate::game::collision_mesh::get)
+            {
+                Some(mesh) => build_mesh_collider_with_physical_properties(
+                    mesh.shape.clone(),
+                    interaction_state,
+                    part.physical_properties,
+                ),
+                None => build_collider_with_physical_properties(
+                    part.size,
+                    part.shape,
+                    interaction_state,
+                    part.physical_properties,
+                ),
+            };
             collider.set_position(local_frame);
             let collider_handle = self.collider_set.insert_with_parent(
                 collider,

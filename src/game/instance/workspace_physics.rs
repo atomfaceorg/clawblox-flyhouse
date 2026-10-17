@@ -627,6 +627,7 @@ impl GameInstance {
                         collision_group: physics_service
                             .collision_group_mask_by_id(part_data.collision_group_id),
                         shape: part_data.shape,
+                        mesh_id: part_data.mesh_id.clone(),
                         physical_properties: Some(part_data.effective_physical_properties()),
                         velocity: [
                             part_data.velocity.x,
@@ -875,6 +876,7 @@ impl GameInstance {
                     collision_group: physics_service
                         .collision_group_mask_by_id(part_data.collision_group_id),
                     shape: part_data.shape,
+                    mesh_id: part_data.mesh_id.clone(),
                     physical_properties: Some(part_data.effective_physical_properties()),
                     velocity: [
                         part_data.velocity.x,

@@ -64,12 +64,10 @@ fn build_shared_shape(size: [f32; 3], shape: PartType) -> SharedShape {
 }
 
 fn build_collider(
-    size: [f32; 3],
-    shape: PartType,
+    shared_shape: SharedShape,
     can_collide: bool,
     interaction_state: PartInteractionState,
 ) -> Collider {
-    let shared_shape = build_shared_shape(size, shape);
     ColliderBuilder::new(shared_shape)
         .enabled(interaction_state.collider_enabled())
         .sensor(!can_collide)
@@ -96,14 +94,27 @@ pub(super) fn build_collider_with_physical_properties(
 ) -> Collider {
     let props = physical_properties.unwrap_or(PhysicalProperties::new(0.7, 0.3, 0.5, 1.0, 1.0));
     let mut collider = build_collider(
-        size,
-        shape,
+        build_shared_shape(size, shape),
         interaction_state.can_collide,
         interaction_state,
     );
     collider.set_friction(props.friction.max(0.0));
     collider.set_restitution(props.elasticity.max(0.0));
     collider.set_density(props.density.max(0.0));
+    collider
+}
+
+/// Builds a collider from a static triangle mesh (see `collision_mesh`).
+/// Triangle meshes are only valid on anchored (kinematic) parts.
+pub(super) fn build_mesh_collider_with_physical_properties(
+    mesh_shape: SharedShape,
+    interaction_state: PartInteractionState,
+    physical_properties: Option<PhysicalProperties>,
+) -> Collider {
+    let props = physical_properties.unwrap_or(PhysicalProperties::new(0.7, 0.3, 0.5, 1.0, 1.0));
+    let mut collider = build_collider(mesh_shape, interaction_state.can_collide, interaction_state);
+    collider.set_friction(props.friction.max(0.0));
+    collider.set_restitution(props.elasticity.max(0.0));
     collider
 }
 

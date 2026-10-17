@@ -72,6 +72,8 @@ pub struct GameInstance {
     pub player_hrp_ids: HashMap<Uuid, u64>, // agent_id -> HumanoidRootPart lua_id
     pub player_names: HashMap<Uuid, String>, // agent_id -> player name
     observation_log_counts: Mutex<HashMap<Uuid, u8>>,
+    /// Last known root position of players whose world assigned a custom character.
+    custom_root_positions: HashMap<Uuid, [f32; 3]>,
     humanoid_warn_counts: Mutex<HashMap<Uuid, u8>>,
     pub status: GameStatus,
     /// Time when the game instance was created (for server_time_ms calculation)
@@ -178,6 +180,7 @@ impl GameInstance {
             player_hrp_ids: HashMap::new(),
             player_names: HashMap::new(),
             observation_log_counts: Mutex::new(HashMap::new()),
+            custom_root_positions: HashMap::new(),
             humanoid_warn_counts: Mutex::new(HashMap::new()),
             status: GameStatus::Playing,
             start_time: Instant::now(),
@@ -452,6 +455,8 @@ impl GameInstance {
             profile.mark("replicated_events");
         }
 
+        self.refresh_custom_root_positions();
+
         self.tick += 1;
         if let Some(profile) = profile {
             profile.finish();
@@ -546,8 +551,62 @@ impl GameInstance {
 
     /// Get player position from their HumanoidRootPart
     fn get_player_position(&self, agent_id: Uuid) -> Option<[f32; 3]> {
+        // A world may replace the default character with its own model (for
+        // example a flying body with no Humanoid). Report that model's primary
+        // part instead of the unused default character controller.
+        if let Some(position) = self.custom_root_positions.get(&agent_id) {
+            return Some(*position);
+        }
         let hrp_id = *self.player_hrp_ids.get(&agent_id)?;
         self.physics.get_character_position(hrp_id)
+    }
+
+    /// Records, once per tick, where players with a world-assigned custom
+    /// character are. Done here rather than on demand because observation
+    /// builders call `get_player_position` while holding player and service locks.
+    fn refresh_custom_root_positions(&mut self) {
+        self.custom_root_positions.clear();
+        let Some(runtime) = self.lua_runtime.as_ref() else {
+            return;
+        };
+        for (&agent_id, &user_id) in &self.players {
+            let Some(&hrp_id) = self.player_hrp_ids.get(&agent_id) else {
+                continue;
+            };
+            let Some(player) = runtime.players().get_player_by_user_id(user_id) else {
+                continue;
+            };
+            let character = {
+                let player_data = player.data.lock().unwrap();
+                player_data
+                    .player_data
+                    .as_ref()
+                    .and_then(|pd| pd.character.as_ref())
+                    .and_then(|weak| weak.upgrade())
+            };
+            let Some(character) = character else {
+                continue;
+            };
+            let primary = {
+                let char_data = character.lock().unwrap();
+                char_data
+                    .model_data
+                    .as_ref()
+                    .and_then(|m| m.primary_part.as_ref())
+                    .and_then(|weak| weak.upgrade())
+            };
+            let Some(primary) = primary else {
+                continue;
+            };
+            let root = primary.lock().unwrap();
+            if root.id.0 == hrp_id {
+                continue;
+            }
+            if let Some(part) = root.part_data.as_ref() {
+                self.custom_root_positions
+                    .insert(agent_id, [part.position.x, part.position.y, part.position.z]);
+            }
+        }
     }
 
     /// Get player health from their Humanoid

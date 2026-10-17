@@ -298,6 +298,9 @@ pub struct WorldConfig {
     /// Optional external runtime command
     #[serde(default)]
     pub run: RunConfig,
+    /// Static triangle-mesh colliders loaded from .glb files (`[[collision_mesh]]`).
+    #[serde(default, rename = "collision_mesh")]
+    pub collision_meshes: Vec<crate::game::collision_mesh::CollisionMeshConfig>,
 }
 
 fn default_max_players() -> u32 {

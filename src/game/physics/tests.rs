@@ -75,6 +75,7 @@ fn assembly_part(
         can_query: true,
         collision_group: CollisionGroupMask::default(),
         shape: PartType::Block,
+        mesh_id: None,
         physical_properties: None,
         velocity: [0.0, 0.0, 0.0],
         angular_velocity: [0.0, 0.0, 0.0],
@@ -95,6 +96,50 @@ fn single_part_spec(part: PhysicsAssemblyPart) -> PhysicsAssemblySpec {
         root_id: part.lua_id,
         parts: vec![part],
     }
+}
+
+fn register_test_mesh_floor(id: &str) {
+    // A 20 x 20 quad at y = 0, as two triangles, centered on the origin.
+    let vertices = vec![
+        point![-10.0, 0.0, -10.0],
+        point![10.0, 0.0, -10.0],
+        point![10.0, 0.0, 10.0],
+        point![-10.0, 0.0, 10.0],
+    ];
+    let indices = vec![[0, 2, 1], [0, 3, 2]];
+    crate::game::collision_mesh::insert_for_test(crate::game::collision_mesh::CollisionMesh {
+        id: id.to_string(),
+        node_name: "Floor".to_string(),
+        center: [0.0, 0.0, 0.0],
+        size: [20.0, 0.0, 20.0],
+        triangle_count: 2,
+        shape: SharedShape::trimesh(vertices, indices).unwrap(),
+    });
+}
+
+#[test]
+fn test_dynamic_part_lands_on_mesh_collider() {
+    register_test_mesh_floor("test/Floor");
+    let mut floor = assembly_part(1, [0.0, 0.0, 0.0], [20.0, 0.1, 20.0], true);
+    floor.mesh_id = Some("test/Floor".to_string());
+    let floor = single_part_spec(floor);
+
+    let mut world = PhysicsWorld::new();
+    world.sync_assemblies(
+        vec![
+            floor.clone(),
+            single_part_spec(assembly_part(2, [0.0, 3.0, 0.0], [1.0, 1.0, 1.0], false)),
+        ],
+        1.0 / 60.0,
+    );
+    for _ in 0..180 {
+        world.step(1.0 / 60.0);
+    }
+    let pos = world.get_part_position(2).unwrap();
+    assert!(
+        (pos[1] - 0.5).abs() < 0.1,
+        "block should rest on the mesh floor at y=0.5, got {pos:?}"
+    );
 }
 
 fn floor_spec() -> PhysicsAssemblySpec {
@@ -1139,6 +1184,7 @@ fn test_partial_single_part_sync_preserves_omitted_assemblies() {
             can_query: true,
             collision_group: CollisionGroupMask::default(),
             shape: PartType::Block,
+            mesh_id: None,
             physical_properties: None,
             velocity: [0.0, 0.0, 0.0],
             angular_velocity: [0.0, 0.0, 0.0],

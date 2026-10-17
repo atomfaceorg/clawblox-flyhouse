@@ -73,6 +73,7 @@ impl WorldRoot {
                         part.cframe.rotation,
                         part.shape,
                         part.material,
+                        part.mesh_id.clone(),
                     )
                 })
             };
@@ -86,6 +87,7 @@ impl WorldRoot {
                 rotation,
                 shape,
                 material,
+                mesh_id,
             )) = part_info
             else {
                 continue;
@@ -119,14 +121,22 @@ impl WorldRoot {
             );
             let local_dir = mat_t_mul_vec(&rotation, ray_direction);
 
-            let hit = match shape {
-                PartType::Block => intersect_box_local(local_origin, local_dir, half),
-                PartType::Ball => intersect_sphere_local(local_origin, local_dir, half[0]),
-                PartType::Cylinder => {
+            let mesh = mesh_id.as_deref().and_then(crate::game::collision_mesh::get);
+            let hit = match (mesh, shape) {
+                (Some(mesh), _) => {
+                    use rapier3d::parry::query::{Ray, RayCast};
+                    let ray = Ray::new(point![local_origin[0], local_origin[1], local_origin[2]], local_dir.into());
+                    mesh.shape
+                        .cast_local_ray_and_get_normal(&ray, ray_length, true)
+                        .map(|hit| (hit.time_of_impact, [hit.normal.x, hit.normal.y, hit.normal.z]))
+                }
+                (None, PartType::Block) => intersect_box_local(local_origin, local_dir, half),
+                (None, PartType::Ball) => intersect_sphere_local(local_origin, local_dir, half[0]),
+                (None, PartType::Cylinder) => {
                     intersect_cylinder_local(local_origin, local_dir, half[0], half[1])
                 }
-                PartType::Ring => intersect_ring_local(local_origin, local_dir, size),
-                PartType::Wedge => intersect_wedge_local(local_origin, local_dir, half),
+                (None, PartType::Ring) => intersect_ring_local(local_origin, local_dir, size),
+                (None, PartType::Wedge) => intersect_wedge_local(local_origin, local_dir, half),
             };
 
             if let Some((t, local_normal)) = hit {
@@ -311,10 +321,12 @@ impl WorldRoot {
             let Some(part) = &data.part_data else {
                 return Ok(Vec::new());
             };
-            (data.id.0, part.size, part.cframe, part.shape)
+            (data.id.0, part.size, part.cframe, part.shape, part.mesh_id.clone())
         };
-        let (query_id, query_size, query_cframe, query_shape_type) = query_data;
-        let Some(query_shape) = shape_from_part(query_size, query_shape_type) else {
+        let (query_id, query_size, query_cframe, query_shape_type, query_mesh_id) = query_data;
+        let Some(query_shape) =
+            part_collision_shape(query_size, query_shape_type, query_mesh_id.as_deref())
+        else {
             return Ok(Vec::new());
         };
         let query_iso = cframe_to_isometry(query_cframe);
@@ -338,13 +350,21 @@ impl WorldRoot {
                             p.size,
                             p.cframe,
                             p.shape,
+                            p.mesh_id.clone(),
                         )
                     })
                 }
             };
 
-            let Some((can_query, can_collide, collision_group_id, size, cframe, shape_type)) =
-                part_data
+            let Some((
+                can_query,
+                can_collide,
+                collision_group_id,
+                size,
+                cframe,
+                shape_type,
+                mesh_id,
+            )) = part_data
             else {
                 continue;
             };
@@ -359,7 +379,7 @@ impl WorldRoot {
                 continue;
             }
 
-            let Some(shape) = shape_from_part(size, shape_type) else {
+            let Some(shape) = part_collision_shape(size, shape_type, mesh_id.as_deref()) else {
                 continue;
             };
             let iso = cframe_to_isometry(cframe);
@@ -861,6 +881,13 @@ fn intersect_ring_local(origin: [f32; 3], dir: [f32; 3], size: Vector3) -> Optio
     }
 
     best
+}
+
+fn part_collision_shape(size: Vector3, shape: PartType, mesh_id: Option<&str>) -> Option<SharedShape> {
+    match mesh_id.and_then(crate::game::collision_mesh::get) {
+        Some(mesh) => Some(mesh.shape.clone()),
+        None => shape_from_part(size, shape),
+    }
 }
 
 fn shape_from_part(size: Vector3, shape: PartType) -> Option<SharedShape> {

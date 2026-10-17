@@ -364,6 +364,8 @@ pub struct PartSnapshot {
     #[serde(default)]
     pub custom_physical_properties: Option<PhysicalPropertiesSnapshot>,
     pub shape: String,
+    #[serde(default)]
+    pub mesh_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2253,6 +2255,7 @@ fn apply_part_snapshot(part: &mut PartData, snapshot: &PartSnapshot) -> Result<(
         .as_ref()
         .map(restore_physical_properties);
     part.shape = restore_part_type(&snapshot.shape)?;
+    part.mesh_id = snapshot.mesh_id.clone();
     part.position_dirty = false;
     part.size_dirty = false;
     part.anchored_dirty = false;
@@ -2350,6 +2353,7 @@ fn snapshot_part_data(part: &PartData) -> PartSnapshot {
             .custom_physical_properties
             .map(snapshot_physical_properties),
         shape: snapshot_part_type(part.shape),
+        mesh_id: part.mesh_id.clone(),
     }
 }
 

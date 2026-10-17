@@ -362,6 +362,28 @@ impl UserData for PhysicsService {
             let data = this.data.lock().unwrap();
             Ok(PhysicsService::group_name(&data, id as u8))
         });
+        // Clawblox extension: lists static triangle meshes loaded from world.toml
+        // `[[collision_mesh]]` entries, for creating anchored Parts with `MeshId`.
+        methods.add_method("GetCollisionMeshes", |lua, _, name: String| {
+            use crate::game::lua::types::Vector3;
+            let table = lua.create_table()?;
+            for (offset, mesh) in crate::game::collision_mesh::list(&name)
+                .into_iter()
+                .enumerate()
+            {
+                let entry = lua.create_table()?;
+                entry.set("Name", mesh.node_name.clone())?;
+                entry.set("MeshId", mesh.id.clone())?;
+                entry.set(
+                    "Position",
+                    Vector3::new(mesh.center[0], mesh.center[1], mesh.center[2]),
+                )?;
+                entry.set("Size", Vector3::new(mesh.size[0], mesh.size[1], mesh.size[2]))?;
+                entry.set("Triangles", mesh.triangle_count as i64)?;
+                table.set(offset + 1, entry)?;
+            }
+            Ok(table)
+        });
         methods.add_method("GetRegisteredCollisionGroups", |lua, this, ()| {
             let table = lua.create_table()?;
             for (offset, (name, _id, mask)) in

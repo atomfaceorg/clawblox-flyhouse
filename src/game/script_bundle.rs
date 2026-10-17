@@ -45,6 +45,7 @@ struct ScriptFile {
 pub fn load_world_and_entry_script(game_dir: &Path) -> Result<(WorldConfig, String), String> {
     let config = WorldConfig::from_game_dir(game_dir)
         .map_err(|e| format!("Error loading world.toml: {}", e))?;
+    crate::game::collision_mesh::load_from_config(game_dir, &config.collision_meshes)?;
     let entry_script = build_entry_script(game_dir, &config)?;
     Ok((config, entry_script))
 }

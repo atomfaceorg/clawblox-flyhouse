@@ -34,6 +34,8 @@ pub struct PartData {
     pub custom_physical_properties: Option<PhysicalProperties>,
     pub custom_physical_properties_dirty: bool,
     pub shape: PartType,
+    /// Static triangle-mesh collider id from `collision_mesh`; overrides `shape` for physics and raycasts.
+    pub mesh_id: Option<String>,
     pub position_dirty: bool,
     /// Distinguishes Roblox's welded-part transform semantics:
     /// Position changes recompute the weld offset, while CFrame changes move the
@@ -75,6 +77,7 @@ impl Default for PartData {
             custom_physical_properties: None,
             custom_physical_properties_dirty: false,
             shape: PartType::Block,
+            mesh_id: None,
             position_dirty: false,
             cframe_dirty: false,
             size_dirty: false,

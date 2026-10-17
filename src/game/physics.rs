@@ -15,7 +15,7 @@ mod parts;
 
 pub use align_motors::{AlignKind, AlignMotorSpec, AlignTarget};
 pub use characters::{CharacterControllerState, GroundKinematicSupport};
-use parts::build_collider_with_physical_properties;
+use parts::{build_collider_with_physical_properties, build_mesh_collider_with_physical_properties};
 
 /// Large enough for normal worlds, small enough to keep Rapier broad-phase keys
 /// away from overflow and floating-point precision collapse.
@@ -97,6 +97,7 @@ pub struct PhysicsAssemblyPart {
     pub can_query: bool,
     pub collision_group: CollisionGroupMask,
     pub shape: PartType,
+    pub mesh_id: Option<String>,
     pub physical_properties: Option<PhysicalProperties>,
     pub velocity: [f32; 3],
     pub angular_velocity: [f32; 3],

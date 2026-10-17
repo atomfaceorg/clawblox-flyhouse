@@ -431,6 +431,34 @@ pub(super) fn add_fields<F: UserDataFields<Instance>>(fields: &mut F) {
         Ok(())
     });
 
+    fields.add_field_method_get("MeshId", |_, this| {
+        let data = this.data.lock().unwrap();
+        Ok(data
+            .part_data
+            .as_ref()
+            .map(|p| p.mesh_id.clone().unwrap_or_default()))
+    });
+    fields.add_field_method_set("MeshId", |lua, this, mesh_id: String| {
+        let mesh_id = if mesh_id.is_empty() {
+            None
+        } else {
+            if crate::game::collision_mesh::get(&mesh_id).is_none() {
+                return Err(mlua::Error::RuntimeError(format!(
+                    "MeshId '{mesh_id}' is not a loaded collision mesh"
+                )));
+            }
+            Some(mesh_id)
+        };
+        let mut data = this.data.lock().unwrap();
+        if let Some(part) = &mut data.part_data {
+            part.mesh_id = mesh_id;
+            part.shape_dirty = true;
+            drop(data);
+            this.mark_replication_dirty(lua);
+        }
+        Ok(())
+    });
+
     fields.add_field_method_get("Touched", |_, this| {
         let data = this.data.lock().unwrap();
         Ok(data.part_data.as_ref().map(|p| p.touched.clone()))

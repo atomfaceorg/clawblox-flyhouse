@@ -41,6 +41,7 @@ clap = { version = "4", features = ["derive", "env"] }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 tokio-tungstenite = "0.28"
 base64 = "0.22"
+gltf = { version = "1", default-features = false, features = ["names", "utils"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

@@ -1,4 +1,5 @@
 pub mod async_bridge;
+pub mod collision_mesh;
 pub mod constants;
 pub mod humanoid_movement;
 pub mod instance;
