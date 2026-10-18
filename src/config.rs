@@ -105,12 +105,19 @@ pub struct ObservationConfig {
     /// included in observations.
     #[serde(default = "default_observation_radius")]
     pub radius: f32,
+    /// Send agents a compact observation: entities keep id, name, position,
+    /// size, anchored and attributes, without rotation, bounding boxes, color,
+    /// material or shape; view-cone attributes are dropped unless vision is on.
+    /// Spectators and recordings are unaffected.
+    #[serde(default)]
+    pub compact: bool,
 }
 
 impl Default for ObservationConfig {
     fn default() -> Self {
         Self {
             radius: default_observation_radius(),
+            compact: false,
         }
     }
 }

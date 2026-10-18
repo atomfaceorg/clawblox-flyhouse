@@ -2174,6 +2174,8 @@ fn run_game(
             physics_config: config.clawblox.physics.clone(),
             allow_reset: config.agent_api.allow_reset,
             state_observation: config.agent_api.state_observation,
+            compact_observations: config.observation.compact,
+            vision_observation: config.agent_api.vision_observation,
             action_feedback: config.agent_api.action_feedback,
             afk_timeout_secs: config.afk_timeout,
             error_mode: ErrorMode::Halt,
@@ -3895,6 +3897,9 @@ struct LocalState {
     physics_config: PhysicsConfig,
     allow_reset: bool,
     state_observation: bool,
+    /// `[observation] compact`: trim agent observations (see `compact_observation`).
+    compact_observations: bool,
+    vision_observation: bool,
     action_feedback: bool,
     afk_timeout_secs: u64,
     error_mode: ErrorMode,
@@ -5449,12 +5454,42 @@ fn action_status_from_observation(action_type: &str, observation: &PlayerObserva
         .to_string()
 }
 
+/// Trims an agent observation for worlds that set `[observation] compact = true`:
+/// entities lose rotation, bounding boxes, color, material, shape, transparency
+/// and entity type, and positions are rounded to 0.1. The view-cone attributes
+/// are dropped when vision observations are off, since nothing uses them.
+fn compact_observation(state: &LocalState, observation: &mut PlayerObservation) {
+    if !state.compact_observations {
+        return;
+    }
+    let round = |v: [f32; 3]| v.map(|x| (x * 10.0).round() / 10.0);
+    for entity in &mut observation.world.entities {
+        entity.entity_type = None;
+        entity.rotation = None;
+        entity.aabb = None;
+        entity.obb = None;
+        entity.color = None;
+        entity.material = None;
+        entity.shape = None;
+        entity.transparency = None;
+        entity.position = round(entity.position);
+        entity.size = round(entity.size);
+    }
+    if !state.vision_observation {
+        observation
+            .player
+            .attributes
+            .retain(|key, _| !key.starts_with("ViewOrigin") && !key.starts_with("ViewForward") && key != "ViewFovDeg");
+    }
+}
+
 fn action_response(
     state: &LocalState,
     action_type: String,
-    observation: PlayerObservation,
+    mut observation: PlayerObservation,
 ) -> axum::response::Response {
     if state.state_observation {
+        compact_observation(state, &mut observation);
         return Json(observation).into_response();
     }
     if state.action_feedback {
@@ -5644,6 +5679,7 @@ async fn local_observe(
         .map_err(|e| (axum::http::StatusCode::BAD_REQUEST, e))?;
     resolve_local_player_assets(&mut observation, &state.base_path);
     maybe_publish_authoritative_speech_events(&state, &observation.recent_events);
+    compact_observation(&state, &mut observation);
 
     Ok(Json(observation))
 }
