@@ -1,6 +1,6 @@
 ---
 title: Flyhouse changes
-summary: "What this fork changes in the engine, and why: triangle-mesh colliders and custom-character positions."
+summary: "What this fork changes in the engine, and why: triangle-mesh colliders, custom-character positions and compact observations. Also what the Fly House world builds on top, and engine behavior it found."
 read_when:
   - Working on the Fly House world or merging upstream Clawblox
   - Using MeshId, [[collision_mesh]] or PhysicsService:GetCollisionMeshes
@@ -18,8 +18,8 @@ additive: worlds that don't use them behave as before.
 ## Made with
 
 The changes were written by **Claude Opus 5.5** (`claude-opus-5-5`) running in
-Claude Code, working with @Phil on Oct 17, 2026. The fly agents used to test them
-ran on Claude Sonnet 5.5.
+Claude Code, working with @Phil on Oct 17–18, 2026. The fly agents used to test them
+ran on Claude Sonnet 5.5 and, through Ollama, Gemma 4 12B.
 
 ## Triangle-mesh colliders
 
@@ -119,12 +119,63 @@ if default and default ~= flyModel then
 end
 ```
 
+## Compact observations
+
+Agent observations repeat every entity's rotation, bounding boxes, color,
+material and shape on every call. That costs a small local model a lot of
+context for nothing. A world can ask for a trimmed observation:
+
+```toml
+[observation]
+compact = true
+```
+
+Agents then get entities with only id, name, position, size, anchored and
+attributes, with positions and sizes rounded to 0.1. The view-cone attributes
+(`ViewOrigin*`, `ViewForward*`, `ViewFovDeg`) are dropped unless
+`[agent_api] vision_observation` is on. It applies to `/observe` and to the
+observation returned by `/input`. Spectators and recordings are unaffected.
+Default `false`.
+
+## Fly House world: Phase 0 (Oct 18, 2026)
+
+The world itself lives outside this repository, in `flycity/HouseWorld`. Phase 0
+of the thin-loop plan prepared it for a population of about 8 flies run by
+small local models. No engine changes were needed for it; it uses the engine as
+follows.
+
+- **Walls stop sound and sight.** A buzz reaches a fly within 2 m only if a
+  `Workspace:Raycast` between them hits no wall, door, floor, ceiling or glass
+  (furniture is stepped through). The same test hides flies and sugar cubes
+  behind walls from the world's own `Flies` and `Sugar` senses, and decides
+  `meet`/`part` events.
+- **Hiding `world.entities`.** The engine's entity list filters by distance
+  only, so it showed flies through walls. The world sets the per-player
+  attribute `ObservationRadius = 0` on every fly (the engine clamps this
+  attribute to `[0, observation.radius]`), so flies get an empty list and read
+  the wall-aware senses instead. The spectator view ignores it.
+- **Shuttable doors.** A shut door is an anchored plug `Part` in the doorway,
+  parented to `Workspace` when shut and to `nil` when open. It must not be
+  tagged `Static`: static parts go to spectators once as map geometry, so a
+  door that changes during a run would never update in the viewer. Untagged,
+  it arrives as an ordinary entity with `Kind = "Door"`, and the renderer
+  draws it.
+- **Scarce food and a Stage player.** 5 of 33 food spots hold food at once and
+  refill elsewhere after being eaten. A player who joins as `Stage` gets no fly
+  body and can open doors, set food and drop sugar through `/input`. The world
+  tells it apart by name; there is no operator endpoint in the engine.
+- **Checks.** `flycity/HouseWorld/tools/check_world.py` runs 21 rule checks
+  against a live server (all pass). `tools/stress_flies.py` ran 10 dummy flies
+  for 30 minutes: 13,862 actions, no errors, `/input` 36 ms median and 90 ms
+  max, server memory flat at 57 MB.
+
 ## Files changed
 
 | File | Change |
 | --- | --- |
 | `src/game/collision_mesh.rs` | New: `.glb` loader and the process-wide mesh registry |
-| `src/config.rs` | `[[collision_mesh]]` entries in `WorldConfig` |
+| `src/config.rs` | `[[collision_mesh]]` entries in `WorldConfig`; `[observation] compact` |
+| `src/bin/cli.rs` | Trims agent observations when `compact` is on |
 | `src/game/script_bundle.rs` | Loads configured meshes when a world loads |
 | `src/game/lua/instance/class_data.rs` | `mesh_id` on part data |
 | `src/game/lua/instance/bindings/fields/base_part.rs` | `Part.MeshId` property |
@@ -159,3 +210,12 @@ script instead of the engine:
   `${SKILL_CURL}` and similar placeholders nothing fills in.
 - On OrbStack, `/etc/resolv.conf` is a symlink outside the sandbox's mounts, so
   DNS fails inside bubblewrap until it is replaced with a plain file.
+
+Found in Fly House Phase 0 (Oct 18, 2026), not yet looked into:
+
+- **The simulation runs slower than real time on an M4 Pro.** Recordings say
+  60 ticks/s, but an idle Fly House world advances about 53 ticks per second,
+  and about 46 with 10 busy agents. World time reached 1,416 s in 1,800 s of
+  real time (79%). Server CPU stayed at 18–35% of one core, so this looks like
+  the tick loop's timing rather than load.
+- **Recordings are large:** 77 MB per 30 minutes with 10 agents.
