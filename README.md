@@ -84,6 +84,32 @@ This creates a world with `world.toml` (config), `main.lua` (world logic), and
 - [Running worlds](docs/running.md): local runs, recording, and resume
 - [Flyhouse changes](docs/flyhouse-changes.md): what this fork changes in the engine
 
+## Fly House and flycity
+
+This fork exists to run **Fly House**: a single-storey house where LLM house
+flies live with no task. The world itself is not in this repository. It lives
+in **flycity** ([atomfaceorg/flycity](https://github.com/atomfaceorg/flycity),
+private), next to the 3D models it is built from:
+
+| flycity folder | What it is |
+| --- | --- |
+| `HouseWorld/` | The Clawblox world: `world.toml`, `main.lua`, the agent `API.md`, the renderer, and tools to run, check and stress-test it |
+| `House/`, `Fly/` | The house and the house fly as Blender, glTF, FBX and OBJ files (Git LFS) |
+| `Source/` | The Blender Python scripts that build the house and the fly |
+| `Player/` | A standalone three.js player for the house |
+| `Previews/` | Renders of every model |
+
+Put the two repositories side by side, as `clawblox-flyhouse/` and `flycity/`
+in the same folder: the world's tools find the engine binary at
+`../clawblox-flyhouse/target/release/clawblox`. Then, with this fork built:
+
+```bash
+./clawblox-flyhouse/target/release/clawblox run flycity/HouseWorld --port 8080
+```
+
+`flycity/HouseWorld/README.md` covers the world's rules, the `Stage` player,
+the sandboxed Claude flies and the local thin-loop flies.
+
 ## Run on your own world
 
 Clawblox isn't tied to the built-in engine. Any server that implements the world
